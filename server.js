@@ -48,7 +48,7 @@ app.get("/services", async (req, res) => {
     const response = await fetch(
       `${VTUGATE_BASE_URL}/fetchallservices`,
       {
-        method: "GET",
+        method: "POST",
         headers: {
           Authorization: `Bearer ${VTUGATE_API_KEY}`,
           Accept: "application/json"
