@@ -8,6 +8,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 10000;
 const VTUGATE_API_KEY = process.env.VTUGATE_API_KEY;
+const VTUGATE_BASE_URL = "https://api.vtugate.com/api/v1";
 
 app.get("/", (req, res) => {
   res.json({
@@ -23,26 +24,46 @@ app.get("/health", (req, res) => {
   });
 });
 
+// Duba ko API key yana nan ba tare da bayyana shi ba
+app.get("/check-config", (req, res) => {
+  res.json({
+    status: true,
+    api_key_configured: Boolean(VTUGATE_API_KEY),
+    message: VTUGATE_API_KEY
+      ? "API key is configured"
+      : "API key is missing"
+  });
+});
+
+// Karɓo jerin services daga VTUGATE
 app.get("/services", async (req, res) => {
+  if (!VTUGATE_API_KEY) {
+    return res.status(500).json({
+      status: false,
+      message: "VTUGATE_API_KEY is missing in Render"
+    });
+  }
+
   try {
     const response = await fetch(
-      "https://api.vtugate.com/api/v1/fetchallservices",
+      `${VTUGATE_BASE_URL}/fetchallservices`,
       {
         method: "GET",
         headers: {
           Authorization: `Bearer ${VTUGATE_API_KEY}`,
           Accept: "application/json"
-        }
+        },
+        signal: AbortSignal.timeout(20000)
       }
     );
 
     const data = await response.json();
 
-    res.json(data);
+    return res.status(response.status).json(data);
   } catch (error) {
-    res.status(500).json({
+    return res.status(502).json({
       status: false,
-      message: "Failed to connect to VTUGATE",
+      message: "Could not connect to VTUGATE",
       error: error.message
     });
   }
