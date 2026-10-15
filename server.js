@@ -66,8 +66,53 @@ app.get("/services", async (req, res) => {
       message: "Could not connect to VTUGATE",
       error: error.message
     });
+  }// Karbo jerin data plans daga VTUGATE
+app.get("/dataplans", async (req, res) => {
+  if (!VTUGATE_API_KEY) {
+    return res.status(500).json({
+      status: false,
+      message: "VTUGATE_API_KEY is missing"
+    });
+  }
+
+  const serviceId = req.query.service_id;
+
+  if (!serviceId || !/^\d+$/.test(serviceId)) {
+    return res.status(400).json({
+      status: false,
+      message: "Please provide a valid service_id"
+    });
+  }
+
+  try {
+    const response = await fetch(
+      `${VTUGATE_BASE_URL}/fetchdataplans`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${VTUGATE_API_KEY}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json"
+        },
+        body: new URLSearchParams({
+          service_id: serviceId
+        }),
+        signal: AbortSignal.timeout(20000)
+      }
+    );
+
+    const data = await response.json();
+    return res.status(response.status).json(data);
+
+  } catch (error) {
+    return res.status(502).json({
+      status: false,
+      message: "Could not connect to VTUGATE",
+      error: error.message
+    });
   }
 });
+
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`K2 backend running on port ${PORT}`);
