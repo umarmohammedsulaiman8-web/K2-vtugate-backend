@@ -66,7 +66,8 @@ app.get("/services", async (req, res) => {
       message: "Could not connect to VTUGATE",
       error: error.message
     });
-  } 
+  }
+  
   // Karbo jerin data plans daga VTUGATE
 app.get("/dataplans", async (req, res) => {
   if (!VTUGATE_API_KEY) {
