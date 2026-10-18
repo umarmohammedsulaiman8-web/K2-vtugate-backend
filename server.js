@@ -95,6 +95,38 @@ app.get("/dataplans", async (req, res) => {
       error: error.message
     });
   }
+});app.post("/buydata", async (req, res) => {
+  const { service_id, plan_code, phone } = req.body;
+
+  if (
+    !service_id ||
+    !/^\d+$/.test(String(service_id)) ||
+    !plan_code ||
+    !/^[a-zA-Z0-9_-]+$/.test(String(plan_code)) ||
+    !phone ||
+    !/^0\d{10}$/.test(String(phone))
+  ) {
+    return res.status(400).json({
+      status: false,
+      message: "Provide valid service_id, plan_code and 11-digit phone"
+    });
+  }
+
+  try {
+    const result = await vtugateRequest("buydata", {
+      service_id: String(service_id),
+      plan_code: String(plan_code),
+      phone: String(phone)
+    });
+
+    return res.status(result.httpStatus).json(result.data);
+  } catch (error) {
+    return res.status(502).json({
+      status: false,
+      message: "Could not complete VTUGATE data request",
+      error: error.message
+    });
+  }
 });
 
 app.listen(PORT, "0.0.0.0", () => {
