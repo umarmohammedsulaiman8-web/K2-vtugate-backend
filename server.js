@@ -10,6 +10,30 @@ const PORT = process.env.PORT || 10000;
 const VTUGATE_API_KEY = process.env.VTUGATE_API_KEY;
 const VTUGATE_BASE_URL = "https://api.vtugate.com/api/v1";
 
+async function vtugateRequest(endpoint, params = {}) {
+  if (!VTUGATE_API_KEY) {
+    throw new Error("VTUGATE_API_KEY is missing in Render");
+  }
+
+  const response = await fetch(`${VTUGATE_BASE_URL}/${endpoint}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${VTUGATE_API_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json"
+    },
+    body: new URLSearchParams(params),
+    signal: AbortSignal.timeout(20000)
+  });
+
+  const data = await response.json();
+
+  return {
+    httpStatus: response.status,
+    data
+  };
+}
+
 app.get("/", (req, res) => {
   res.json({
     status: true,
@@ -24,7 +48,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Duba ko API key yana nan ba tare da bayyana shi ba
 app.get("/check-config", (req, res) => {
   res.json({
     status: true,
@@ -35,51 +58,24 @@ app.get("/check-config", (req, res) => {
   });
 });
 
-// Karɓo jerin services daga VTUGATE
 app.get("/services", async (req, res) => {
-  if (!VTUGATE_API_KEY) {
-    return res.status(500).json({
-      status: false,
-      message: "VTUGATE_API_KEY is missing in Render"
-    });
-  }
-
   try {
-    const response = await fetch(
-      `${VTUGATE_BASE_URL}/fetchallservices`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${VTUGATE_API_KEY}`,
-          Accept: "application/json"
-        },
-        signal: AbortSignal.timeout(20000)
-      }
-    );
+    const result = await vtugateRequest("fetchallservices");
 
-    const data = await response.json();
-
-    return res.status(response.status).json(data);
+    res.status(result.httpStatus).json(result.data);
   } catch (error) {
-    return res.status(502).json({
+    res.status(502).json({
       status: false,
-      message: "Could not connect to VTUGATE",
+      message: "Could not fetch services from VTUGATE",
       error: error.message
     });
   }
-  
-  // Karbo jerin data plans daga VTUGATE
-app.get("/dataplans", async (req, res) => {
-  if (!VTUGATE_API_KEY) {
-    return res.status(500).json({
-      status: false,
-      message: "VTUGATE_API_KEY is missing"
-    });
-  }
+});
 
+app.get("/dataplans", async (req, res) => {
   const serviceId = req.query.service_id;
 
-  if (!serviceId || !/^\d+$/.test(serviceId)) {
+  if (!serviceId || !/^\d+$/.test(String(serviceId))) {
     return res.status(400).json({
       status: false,
       message: "Please provide a valid service_id"
@@ -87,34 +83,19 @@ app.get("/dataplans", async (req, res) => {
   }
 
   try {
-    const response = await fetch(
-      `${VTUGATE_BASE_URL}/fetchdataplans`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${VTUGATE_API_KEY}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json"
-        },
-        body: new URLSearchParams({
-          service_id: serviceId
-        }),
-        signal: AbortSignal.timeout(20000)
-      }
-    );
+    const result = await vtugateRequest("fetchdataplans", {
+      service_id: String(serviceId)
+    });
 
-    const data = await response.json();
-    return res.status(response.status).json(data);
-
+    res.status(result.httpStatus).json(result.data);
   } catch (error) {
-    return res.status(502).json({
+    res.status(502).json({
       status: false,
-      message: "Could not connect to VTUGATE",
+      message: "Could not fetch data plans from VTUGATE",
       error: error.message
     });
   }
 });
-
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`K2 backend running on port ${PORT}`);
