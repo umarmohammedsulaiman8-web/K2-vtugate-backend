@@ -10,6 +10,30 @@ const PORT = process.env.PORT || 10000;
 const VTUGATE_API_KEY = process.env.VTUGATE_API_KEY;
 const VTUGATE_BASE_URL = "https://api.vtugate.com/api/v1";
 
+async function vtugateRequest(endpoint, params = {}) {
+  if (!VTUGATE_API_KEY) {
+    throw new Error("VTUGATE_API_KEY is missing in Render");
+  }
+
+  const response = await fetch(`${VTUGATE_BASE_URL}/${endpoint}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${VTUGATE_API_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json"
+    },
+    body: new URLSearchParams(params),
+    signal: AbortSignal.timeout(20000)
+  });
+
+  const data = await response.json();
+
+  return {
+    httpStatus: response.status,
+    data
+  };
+}
+
 // Babban shafin backend
 app.get("/", (req, res) => {
   res.json({
@@ -26,8 +50,8 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Duba ko API key yana cikin Render
-app.get("/check-config", (req, res) => {
+// Duba ko API key yana nan ba tare da nuna shi ba
+app.get("/api-key-status", (req, res) => {
   res.json({
     status: true,
     api_key_configured: Boolean(VTUGATE_API_KEY),
@@ -37,55 +61,14 @@ app.get("/check-config", (req, res) => {
   });
 });
 
-// Aika request zuwa VTUGATE daga backend
-async function vtugateRequest(endpoint, params = {}) {
-  if (!VTUGATE_API_KEY) {
-    throw new Error("VTUGATE_API_KEY is missing in Render");
-  }
-
-  const response = await fetch(
-    `${VTUGATE_BASE_URL}/${endpoint}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${VTUGATE_API_KEY}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json"
-      },
-      body: new URLSearchParams(params),
-      signal: AbortSignal.timeout(20000)
-    }
-  );
-
-  const text = await response.text();
-
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch {
-    data = {
-      status: false,
-      message: "VTUGATE returned an invalid response"
-    };
-  }
-
-  return {
-    httpStatus: response.status,
-    data
-  };
-}
-
-// Samun jerin services
+// Samun jerin services daga VTUGATE
 app.get("/services", async (req, res) => {
   try {
     const result = await vtugateRequest("fetchallservices");
 
-    return res
-      .status(result.httpStatus)
-      .json(result.data);
+    res.status(result.httpStatus).json(result.data);
   } catch (error) {
-    return res.status(502).json({
+    res.status(502).json({
       status: false,
       message: "Could not fetch services from VTUGATE",
       error: error.message
@@ -93,11 +76,12 @@ app.get("/services", async (req, res) => {
   }
 });
 
-// Samun data plans ta service_id
+// Samun data plans na kowanne network
+// Misali: /dataplans?service_id=149
 app.get("/dataplans", async (req, res) => {
-  const serviceId = String(req.query.service_id || "");
+  const serviceId = req.query.service_id;
 
-  if (!/^\d+$/.test(serviceId)) {
+  if (!serviceId || !/^\d+$/.test(String(serviceId))) {
     return res.status(400).json({
       status: false,
       message: "Provide a valid service_id"
@@ -106,14 +90,12 @@ app.get("/dataplans", async (req, res) => {
 
   try {
     const result = await vtugateRequest("fetchdataplans", {
-      service_id: serviceId
+      service_id: String(serviceId)
     });
 
-    return res
-      .status(result.httpStatus)
-      .json(result.data);
+    res.status(result.httpStatus).json(result.data);
   } catch (error) {
-    return res.status(502).json({
+    res.status(502).json({
       status: false,
       message: "Could not fetch data plans from VTUGATE",
       error: error.message
@@ -121,19 +103,21 @@ app.get("/dataplans", async (req, res) => {
   }
 });
 
-// Siyan data
+// Sayen data
 app.post("/buydata", async (req, res) => {
-  const { service_id, plan_code, phone } = req.body || {};
+  const { service_id, plan_code, phone } = req.body;
 
   if (
-    !/^\d+$/.test(String(service_id || "")) ||
-    !/^[a-zA-Z0-9_-]+$/.test(String(plan_code || "")) ||
-    !/^0\d{10}$/.test(String(phone || ""))
+    !service_id ||
+    !/^\d+$/.test(String(service_id)) ||
+    !plan_code ||
+    !/^[a-zA-Z0-9_-]+$/.test(String(plan_code)) ||
+    !phone ||
+    !/^0\d{10}$/.test(String(phone))
   ) {
     return res.status(400).json({
       status: false,
-      message:
-        "Provide valid service_id, plan_code and Nigerian phone number"
+      message: "Provide valid service_id, plan_code and Nigerian phone number"
     });
   }
 
@@ -144,9 +128,7 @@ app.post("/buydata", async (req, res) => {
       phone: String(phone)
     });
 
-    return res
-      .status(result.httpStatus)
-      .json(result.data);
+    return res.status(result.httpStatus).json(result.data);
   } catch (error) {
     return res.status(502).json({
       status: false,
@@ -158,5 +140,5 @@ app.post("/buydata", async (req, res) => {
 
 // Fara backend
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`K2 backend running on port ${PORT}`);
+  console.log(`K2 Data Sub backend running on port ${PORT}`);
 });
